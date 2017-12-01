@@ -75,38 +75,83 @@ class SVM(object):
     def __init__(self, c, feature_count):
         self.c = c
         self.w = np.random.normal(0.0, 0.1, feature_count)
+        self.b = np.random.normal(0.0, 0.1, 1)
+        print(self.w)
         
         
-    def hinge_loss(self, X, y):
+    def hinge_loss(self,x, y,b):
         '''
         Compute the hinge-loss for input data X (shape (n, m)) with target y (shape (n,)).
 
         Returns a length-n vector containing the hinge-loss per data point.
         '''
         # Implement hinge loss
-        return None
+        
+        y_fx = np.dot(y,(np.dot(self.w.transpose(),x)+b))
+        if y_fx < 1:
+            return((1- y_fx))
+        else:
+            return(0)  
+        return hinge_sum
+    
     def train(self,X,y,iters,batchsize,optimizer,C):
+        loss = 0
         for i in np.arange(0,iters):
             sample = BatchSampler(X,y,batchsize)
             samp_X, samp_y = sample.get_batch()
             w = self.w
             y_x_sum = np.zeros((w.shape[0],1))
-            for s in np.arange(0,batchsize):
+            loss = loss + hinge_loss(X,y)
+            for s in np.arange(0,batchsize-1):
                 y_s = samp_y[s]
                 x_s = samp_X[s,:]
-                y_fx = np.dot(y_s,np.dot(w,x_s))
+                y_fx = np.dot(y_s,np.dot(w.transpose(),x_s))
+                loss = loss + hinge_loss(X,y)
                 if y_fx < 1:
                      add_row = np.array(y_s*x_s)
                      add_row = np.reshape(add_row,(add_row.shape[0],1))
                      y_x_sum = np.append(y_x_sum,add_row,axis=1)
-            print(y_x_sum.shape)
             y_x_sum = np.sum(y_x_sum,axis=1)
-            print(y_x_sum.shape)
             def grad(w):
-                return(w+C/batchsize*y_x_sum)
+                 return(w-C/batchsize*y_x_sum)
             update_grad = optimizer.update_params(w,grad)
+       
+            self.w = update_grad
+        return(update_grad)
                             
-                
+    def train2(self,X,y,iters,batchsize,optimizer_w,optimizer_b):
+        loss = 0
+        for i in np.arange(0,iters):
+            sample = BatchSampler(X,y,batchsize)
+            samp_X, samp_y = sample.get_batch()
+            w = self.w
+            b = self.b
+            y_x_sum = np.zeros((w.shape[0],1))
+            y_sum = 0
+            
+            for s in np.arange(0,batchsize-1):
+                y_s = samp_y[s]
+                x_s = samp_X[s,:]
+                y_fx = np.dot(y_s,(np.dot(w.transpose(),x_s)+b))
+         #       print(np.dot(w.transpose(),x_s)+b)
+                loss = loss + self.hinge_loss(x_s,y_s,b)
+                if y_fx < 1:
+                     add_row = np.array(y_s*x_s)
+                     add_row = np.reshape(add_row,(add_row.shape[0],1))
+                     y_x_sum = np.append(y_x_sum,add_row,axis=1)
+                     y_sum += y_s
+            y_x_sum = np.sum(y_x_sum,axis=1)
+            def grad(w):
+                 return(w-self.c/batchsize*y_x_sum)
+            def grad_b(y_sum):
+                return(-self.c/batchsize*y_sum)
+            update_grad = optimizer_w.update_params(w,grad)
+            update_grad_b = optimizer_b.update_params(b,grad_b)
+        #    print("update b", y_sum)
+       
+            self.w = update_grad
+            self.b = update_grad_b
+        return(loss)                
                 
                         
         
@@ -127,8 +172,11 @@ class SVM(object):
 
         Returns the predicted class labels (shape (n,))
         '''
-        # Classify points as +1 or -1
-        return None
+        out = np.dot(X,self.w)+self.b
+        out[np.where(out>0)]=1
+        out[np.where(out<0)]=-1
+        print(out.shape)
+        return out
 
 def load_data():
     '''
@@ -180,17 +228,28 @@ def optimize_test_function(optimizer, w_init=10.0, steps=300):
         pass
     return w_history
 
-def optimize_svm(train_data, train_targets, penalty, optimizer, batchsize, iters):
+def optimize_svm(train_data, train_targets, penalty, optimizer_w, optimizer_b, batchsize, iters):
     '''
     Optimize the SVM with the given hyperparameters. Return the trained SVM.
     '''
-    print(train_data.shape)
-    train_data = np.append(np.ones((train_data.shape[0],1)),train_data,axis=0)
+    print(train_targets)
+ #   train_data = np.append(np.ones((1,train_data.shape[1])),train_data,axis=0)
+ #   train_targets = np.append(1,train_targets)
     print(train_data.shape)
     svm = SVM(penalty, feature_count=train_data.shape[1])
-    svm.train(train_data,train_targets,iters,batchsize,optimizer,penalty)
+    loss = svm.train2(train_data,train_targets,iters,batchsize,optimizer_w,optimizer_b)
+    print("loss",loss)
+  #  pred_train = svm.classify(train_data)
+  #  correct = pred_train[pred_train == train_targets]
+ #   print(correct.shape[0]/pred_train.shape[0])
+  #  classification_accuracy(pred_train,train_targets)
    # svm.hinge(train_data,train_targets)
-    return None
+    return svm
+
+def classification_accuracy(pred,truth):
+    correct = pred[pred == truth]
+    print(correct.shape[0]/pred.shape[0])
+    return(correct.shape[0]/pred.shape[0])
 
 if __name__ == '__main__':
     w = np.array(10.0)
@@ -198,6 +257,14 @@ if __name__ == '__main__':
    
  #   w_hist = optimize_test_function(grad,w_init=w)
     train_data, train_targets, test_data, test_targets = load_data()
-    svm_opt = GDOptimizer(lr=0.05,beta=0, param_shape = train_data.shape[1])
-    my_svm = optimize_svm(train_data, train_targets, penalty =1, optimizer=svm_opt, batchsize=10, iters=2)
-    pass
+    svm_opt = GDOptimizer(lr=0.05,beta=0.1, param_shape = train_data.shape[1])
+    svm_opt_b = GDOptimizer(lr=0.05,beta=0.1, param_shape = 1)
+ #   my_svm = optimize_svm(test_data, test_targets, penalty =1, optimizer_w=svm_opt, optimizer_b=svm_opt_b, batchsize=100, iters=500)
+  
+    my_svm = optimize_svm(train_data, train_targets, penalty =1, optimizer_w =svm_opt, optimizer_b=svm_opt_b, batchsize=100, iters=500)
+    train_pred = my_svm.classify(train_data)
+    classification_accuracy(train_pred,train_targets) 
+    
+    test_pred = my_svm.classify(test_data)
+    classification_accuracy(test_pred,test_targets)
+    #   pass
