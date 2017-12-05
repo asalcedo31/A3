@@ -2,7 +2,7 @@ import numpy as np
 
 from sklearn.datasets import fetch_mldata
 import matplotlib.pyplot as plt
-
+from sklearn.feature_selection import VarianceThreshold
 np.random.seed(1847)
 
 class BatchSampler(object):
@@ -92,7 +92,7 @@ class SVM(object):
             return((1- y_fx))
         else:
             return(0)  
-        return hinge_sum
+        
     
     def train(self,X,y,iters,batchsize,optimizer,C):
         loss = 0
@@ -151,7 +151,7 @@ class SVM(object):
        
             self.w = update_grad
             self.b = update_grad_b
-        return(loss)                
+        return(loss/batchsize)                
                 
                         
         
@@ -173,11 +173,23 @@ class SVM(object):
         Returns the predicted class labels (shape (n,))
         '''
         out = np.dot(X,self.w)+self.b
-        out[np.where(out>0)]=1
-        out[np.where(out<0)]=-1
+        y = np.zeros((X.shape[0],))
+        print(y.shape)
         print(out.shape)
-        return out
-
+        y[np.where(out>0)]=1
+        y[np.where(out<0)]=-1
+      #  out_loss
+        loss = y*out
+        print(out,y,loss)
+        loss[np.where(loss<1)]= 1-loss[np.where(loss<1)]
+        loss[np.where(loss>1)] = 0
+        print("loss",loss.mean())
+        return y
+    def plot_w(self):
+        plt.figure(figsize=(10, 10))
+        w_plot = self.w.reshape(28,28)
+        plt.imshow(w_plot, cmap='gray')
+        plt.savefig('w_image.png')
 def load_data():
     '''
     Load MNIST data (4 and 9 only) and split into train and test
@@ -204,7 +216,7 @@ def load_data():
     print("-------------------------------")
     return train_data, train_targets, test_data, test_targets
 
-def optimize_test_function(optimizer, w_init=10.0, steps=300):
+def optimize_test_function(optimizer, w_init=10.0, steps=200):
     '''
     Optimize the simple quadratic test function and return the parameter history.
     '''
@@ -222,28 +234,19 @@ def optimize_test_function(optimizer, w_init=10.0, steps=300):
     for x in range(steps):
         # Optimize and update the history
         params_w = grad.update_params(w,func_grad)
-        print(params_w)
         w_history.append(params_w)
         w = params_w
-        pass
-    return w_history
+    w_history = np.array(w_history)
+ 
+    return w_history[1:w_history.shape[0]]
 
 def optimize_svm(train_data, train_targets, penalty, optimizer_w, optimizer_b, batchsize, iters):
     '''
     Optimize the SVM with the given hyperparameters. Return the trained SVM.
     '''
-    print(train_targets)
- #   train_data = np.append(np.ones((1,train_data.shape[1])),train_data,axis=0)
- #   train_targets = np.append(1,train_targets)
-    print(train_data.shape)
     svm = SVM(penalty, feature_count=train_data.shape[1])
     loss = svm.train2(train_data,train_targets,iters,batchsize,optimizer_w,optimizer_b)
     print("loss",loss)
-  #  pred_train = svm.classify(train_data)
-  #  correct = pred_train[pred_train == train_targets]
- #   print(correct.shape[0]/pred_train.shape[0])
-  #  classification_accuracy(pred_train,train_targets)
-   # svm.hinge(train_data,train_targets)
     return svm
 
 def classification_accuracy(pred,truth):
@@ -251,11 +254,25 @@ def classification_accuracy(pred,truth):
     print(correct.shape[0]/pred.shape[0])
     return(correct.shape[0]/pred.shape[0])
 
+
+def plot_w(p1,p2,steps=200,fig_name='w_iter.png'):
+    plt.figure(figsize=(10, 10))
+    plt.plot(range(steps),p1)
+    plt.plot(range(steps),p2)
+    plt.savefig(fig_name)
+
+    
 if __name__ == '__main__':
     w = np.array(10.0)
-    grad = GDOptimizer(lr =10,beta=0,param_shape = w.shape)
-   
- #   w_hist = optimize_test_function(grad,w_init=w)
+    grad = GDOptimizer(lr =1,beta=0,param_shape = w.shape)
+    w_hist_no_mom = optimize_test_function(grad,w_init=w)
+    
+    grad = GDOptimizer(lr =1,beta=0.9,param_shape = w.shape)
+    w_hist_w_mom = optimize_test_function(grad,w_init=w)
+    plt.ylabel("w estimate")
+    plt.xlabel("iteration")
+    plot_w(w_hist_no_mom,w_hist_w_mom)
+    
     train_data, train_targets, test_data, test_targets = load_data()
     svm_opt = GDOptimizer(lr=0.05,beta=0.1, param_shape = train_data.shape[1])
     svm_opt_b = GDOptimizer(lr=0.05,beta=0.1, param_shape = 1)
@@ -264,7 +281,7 @@ if __name__ == '__main__':
     my_svm = optimize_svm(train_data, train_targets, penalty =1, optimizer_w =svm_opt, optimizer_b=svm_opt_b, batchsize=100, iters=500)
     train_pred = my_svm.classify(train_data)
     classification_accuracy(train_pred,train_targets) 
-    
+    my_svm.plot_w()
     test_pred = my_svm.classify(test_data)
     classification_accuracy(test_pred,test_targets)
     #   pass
