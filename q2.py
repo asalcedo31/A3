@@ -76,51 +76,18 @@ class SVM(object):
         self.c = c
         self.w = np.random.normal(0.0, 0.1, feature_count)
         self.b = np.random.normal(0.0, 0.1, 1)
-        print(self.w)
         
         
-    def hinge_loss(self,x, y,b):
+          
+                                
+    def grad(self,X,y,iters,batchsize,optimizer_w,optimizer_b):
         '''
-        Compute the hinge-loss for input data X (shape (n, m)) with target y (shape (n,)).
+        Compute the gradient of the SVM objective for input data X (shape (n, m))
+        with target y (shape (n,))
 
-        Returns a length-n vector containing the hinge-loss per data point.
+        Returns the gradient with respect to the SVM parameters (shape (m,)).
         '''
-        # Implement hinge loss
         
-        y_fx = np.dot(y,(np.dot(self.w.transpose(),x)+b))
-        if y_fx < 1:
-            return((1- y_fx))
-        else:
-            return(0)  
-        
-    
-    def train(self,X,y,iters,batchsize,optimizer,C):
-        loss = 0
-        for i in np.arange(0,iters):
-            sample = BatchSampler(X,y,batchsize)
-            samp_X, samp_y = sample.get_batch()
-            w = self.w
-            y_x_sum = np.zeros((w.shape[0],1))
-            loss = loss + hinge_loss(X,y)
-            for s in np.arange(0,batchsize-1):
-                y_s = samp_y[s]
-                x_s = samp_X[s,:]
-                y_fx = np.dot(y_s,np.dot(w.transpose(),x_s))
-                loss = loss + hinge_loss(X,y)
-                if y_fx < 1:
-                     add_row = np.array(y_s*x_s)
-                     add_row = np.reshape(add_row,(add_row.shape[0],1))
-                     y_x_sum = np.append(y_x_sum,add_row,axis=1)
-            y_x_sum = np.sum(y_x_sum,axis=1)
-            def grad(w):
-                 return(w-C/batchsize*y_x_sum)
-            update_grad = optimizer.update_params(w,grad)
-       
-            self.w = update_grad
-        return(update_grad)
-                            
-    def train2(self,X,y,iters,batchsize,optimizer_w,optimizer_b):
-        loss = 0
         for i in np.arange(0,iters):
             sample = BatchSampler(X,y,batchsize)
             samp_X, samp_y = sample.get_batch()
@@ -128,68 +95,68 @@ class SVM(object):
             b = self.b
             y_x_sum = np.zeros((w.shape[0],1))
             y_sum = 0
-            
+            #iterate through the batch and only collect points where y*wx <1
             for s in np.arange(0,batchsize-1):
                 y_s = samp_y[s]
                 x_s = samp_X[s,:]
                 y_fx = np.dot(y_s,(np.dot(w.transpose(),x_s)+b))
-         #       print(np.dot(w.transpose(),x_s)+b)
-                loss = loss + self.hinge_loss(x_s,y_s,b)
+                
                 if y_fx < 1:
                      add_row = np.array(y_s*x_s)
                      add_row = np.reshape(add_row,(add_row.shape[0],1))
                      y_x_sum = np.append(y_x_sum,add_row,axis=1)
                      y_sum += y_s
             y_x_sum = np.sum(y_x_sum,axis=1)
+            #gradient of the weights
             def grad(w):
                  return(w-self.c/batchsize*y_x_sum)
+            #gradient of the bias
             def grad_b(y_sum):
                 return(-self.c/batchsize*y_sum)
             update_grad = optimizer_w.update_params(w,grad)
             update_grad_b = optimizer_b.update_params(b,grad_b)
-        #    print("update b", y_sum)
-       
+
             self.w = update_grad
             self.b = update_grad_b
-        return(loss/batchsize)                
-                
+        return None   
+             
+    def hinge_loss2(self,X,y):
+        '''
+        Compute the hinge-loss for input data X (shape (n, m)) with target y (shape (n,)).
+
+        Returns a length-n vector containing the hinge-loss per data point.
+        '''
+        out = np.dot(X,self.w)+self.b
+        loss = y*out
+        loss[np.where(loss<1)]= 1-loss[np.where(loss<1)]
+        loss[np.where(loss>1)] = 0
+        return(loss.mean())           
                         
-        
-         #   print(dist_to_marg)
-    def grad(self, X, y):
-        '''
-        Compute the gradient of the SVM objective for input data X (shape (n, m))
-        with target y (shape (n,))
-
-        Returns the gradient with respect to the SVM parameters (shape (m,)).
-        '''
-        # Compute (sub-)gradient of SVM objective
-        return None
-
+            
     def classify(self, X):
         '''
         Classify new input data matrix (shape (n,m)).
+        Outputs average hinge loss for the dataset
 
         Returns the predicted class labels (shape (n,))
+        
         '''
+        #classify points by the sign
         out = np.dot(X,self.w)+self.b
         y = np.zeros((X.shape[0],))
-        print(y.shape)
-        print(out.shape)
         y[np.where(out>0)]=1
         y[np.where(out<0)]=-1
-      #  out_loss
-        loss = y*out
-        print(out,y,loss)
-        loss[np.where(loss<1)]= 1-loss[np.where(loss<1)]
-        loss[np.where(loss>1)] = 0
+        #calculate hinge loss
+        loss = self.hinge_loss2(X,y)
         print("loss",loss.mean())
         return y
-    def plot_w(self):
+    #plot weights
+    def plot_w(self,filename):
         plt.figure(figsize=(10, 10))
         w_plot = self.w.reshape(28,28)
         plt.imshow(w_plot, cmap='gray')
-        plt.savefig('w_image.png')
+        plt.savefig(filename)
+        
 def load_data():
     '''
     Load MNIST data (4 and 9 only) and split into train and test
@@ -228,8 +195,7 @@ def optimize_test_function(optimizer, w_init=10.0, steps=200):
 
     w = w_init
     w_history = [w_init]
-    print(w_history)
-    
+      
 
     for x in range(steps):
         # Optimize and update the history
@@ -245,13 +211,12 @@ def optimize_svm(train_data, train_targets, penalty, optimizer_w, optimizer_b, b
     Optimize the SVM with the given hyperparameters. Return the trained SVM.
     '''
     svm = SVM(penalty, feature_count=train_data.shape[1])
-    loss = svm.train2(train_data,train_targets,iters,batchsize,optimizer_w,optimizer_b)
-    print("loss",loss)
+    svm.grad(train_data,train_targets,iters,batchsize,optimizer_w,optimizer_b)
     return svm
 
 def classification_accuracy(pred,truth):
     correct = pred[pred == truth]
-    print(correct.shape[0]/pred.shape[0])
+    print("accuracy:",correct.shape[0]/pred.shape[0])
     return(correct.shape[0]/pred.shape[0])
 
 
@@ -259,29 +224,46 @@ def plot_w(p1,p2,steps=200,fig_name='w_iter.png'):
     plt.figure(figsize=(10, 10))
     plt.plot(range(steps),p1)
     plt.plot(range(steps),p2)
+    plt.ylabel("w estimate")
+    plt.xlabel("iteration")
     plt.savefig(fig_name)
 
     
 if __name__ == '__main__':
     w = np.array(10.0)
+    #No momentum
     grad = GDOptimizer(lr =1,beta=0,param_shape = w.shape)
     w_hist_no_mom = optimize_test_function(grad,w_init=w)
-    
+    #with momentum
     grad = GDOptimizer(lr =1,beta=0.9,param_shape = w.shape)
     w_hist_w_mom = optimize_test_function(grad,w_init=w)
-    plt.ylabel("w estimate")
-    plt.xlabel("iteration")
     plot_w(w_hist_no_mom,w_hist_w_mom)
     
     train_data, train_targets, test_data, test_targets = load_data()
-    svm_opt = GDOptimizer(lr=0.05,beta=0.1, param_shape = train_data.shape[1])
-    svm_opt_b = GDOptimizer(lr=0.05,beta=0.1, param_shape = 1)
- #   my_svm = optimize_svm(test_data, test_targets, penalty =1, optimizer_w=svm_opt, optimizer_b=svm_opt_b, batchsize=100, iters=500)
-  
-    my_svm = optimize_svm(train_data, train_targets, penalty =1, optimizer_w =svm_opt, optimizer_b=svm_opt_b, batchsize=100, iters=500)
+    
+    #no momentum 
+    print("without momentum")
+    svm_opt_no_mom = GDOptimizer(lr=0.05,beta=0, param_shape = 1)
+    my_svm = optimize_svm(train_data, train_targets, penalty =1, optimizer_w =svm_opt, optimizer_b=svm_opt_no_mom, batchsize=100, iters=500)
+    print("train")
     train_pred = my_svm.classify(train_data)
-    classification_accuracy(train_pred,train_targets) 
-    my_svm.plot_w()
+    train_loss = classification_accuracy(train_pred,train_targets) 
+    my_svm.plot_w("w_no_mom_image.png")
+    print("test")
     test_pred = my_svm.classify(test_data)
     classification_accuracy(test_pred,test_targets)
-    #   pass
+    
+    #with momentum
+    print("with momentum")
+    svm_opt_mom = GDOptimizer(lr=0.05,beta=0.1, param_shape = 1)
+    my_svm = optimize_svm(train_data, train_targets, penalty =1, optimizer_w =svm_opt, optimizer_b=svm_opt_mom, batchsize=100, iters=500)
+    print("train")
+    train_pred = my_svm.classify(train_data)
+    train_loss = classification_accuracy(train_pred,train_targets) 
+    my_svm.plot_w("w_w_mom_image.png")
+    print("test")
+    test_pred = my_svm.classify(test_data)
+    classification_accuracy(test_pred,test_targets)
+    
+    
+    
