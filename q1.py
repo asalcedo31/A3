@@ -18,6 +18,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import BaggingClassifier
 from sklearn.feature_selection import VarianceThreshold
+from sklearn.model_selection import cross_val_score
 from collections import Counter
 from sklearn.svm import SVC
 import pandas as pandas
@@ -135,18 +136,23 @@ def gnb(train, train_labels):
 def bagging(train,train_labels):
     model = MultinomialNB()
     
-    bag = BaggingClassifier(model,n_estimators=25,max_features=0.8)
+    bag = BaggingClassifier(model,n_estimators=35,max_features=0.8,oob_score=True)
     model_grid = GridSearchCV(bag,param_grid=dict(max_features=np.arange(0.1,1,step=0.05)))
     model_grid.fit(train,train_labels)
-    bag.fit(train,train_labels)
     print(model_grid.best_params_)
-    pred = model_grid.predict(train)
+    best_param = model_grid.best_params_['max_features']
+    bag_best = BaggingClassifier(model,n_estimators=30,max_features=best_param,oob_score=True)
+    bag_best.fit(train,train_labels)
+    
+    print("oob score: ", bag_best.oob_score_)
+    pred = bag_best.predict(train)
     print("MNB + Bagging train accuracy", (pred == train_labels).mean())
-    return(model_grid)
+    return(bag_best)
+
 #random forest
 def rfc(tf_train,tf_labels,tf_test, test_labels,C=1):
     model = sklearn.ensemble.RandomForestClassifier()
-    model_grid = GridSearchCV(model,param_grid=dict(n_estimators=np.arange(7,21,step=1),max_features=np.arrange(0,sqrt(tf_train.shape[1])/tf_train.shape[1],0.05),min_samples_leaf=np.arrange(1,50,step=5)))
+    model_grid = GridSearchCV(model,param_grid=dict(n_estimators=np.arange(7,21,step=1),max_features=np.arange(0,sqrt(tf_train.shape[1])/tf_train.shape[1],0.05),min_samples_leaf=np.arange(1,50,step=5)))
     model_grid.fit(tf_train,tf_labels)
     print(model_grid.best_params_)
     train_pred = model_grid.predict(tf_train)
@@ -157,7 +163,9 @@ def rfc(tf_train,tf_labels,tf_test, test_labels,C=1):
 #svm
 def svm_model(tf_train,tf_labels):
     model = SVC(decision_function_shape='ovo')
-    model_grid = GridSearchCV(model,param_grid=dict(C=np.arange(0.01,1,step=0.1),kernel = ['linear','rbf','poly','sigmoid']))
+    model_grid = GridSearchCV(model,param_grid=dict(C=np.arange(0.01,1,step=0.2),kernel = ['linear','rbf','poly','sigmoid']))
+    nested_score = cross_val_score(model_grid,X=tf_train, y=tf_labels,cv = 5)
+    print(nested_score)
     model_grid.fit(tf_train,tf_labels)
     print(model_grid.best_params_)
     train_pred = model_grid.predict(tf_train)
@@ -177,12 +185,14 @@ def log_reg2(tf_train,tf_labels):
                                                    multi_class ='multinomial'
                                                    )
     model_grid = GridSearchCV(model,param_grid=dict(C=np.arange(1,5,step=1)))
+    nested_score = cross_val_score(model_grid,X=tf_train, y=tf_labels,cv = 5)
+    print(nested_score)
     model_grid.fit(tf_train,tf_labels)
     print(model_grid.best_params_)
     train_pred = model_grid.predict(tf_train)
     accuracy = (train_pred == tf_labels).mean()
     print("L2 logistic regression train accuracy: ", accuracy)
-    return(model_grid)
+    return(model_grid, nested_score)
 
 
 def log_reg(tf_train,tf_labels, tf_test, test_labels,C=1,):
@@ -259,7 +269,7 @@ if __name__ == '__main__':
     bag_pred = run_test(bag_model,test_bow,test_data.target,"Bagged MultinomialNB")
     confusion_matrix(bag_pred,test_data.target,test_data.target_names,'bg_mnb_confusion.csv')
     
-    log_reg_model = log_reg2(train_tf,train_data.target)
+    log_reg_model, lg_nest = log_reg2(train_tf,train_data.target)
     log_pred = run_test(log_reg_model,test_tf,test_data.target,"L2 penalized logistic regression")
     confusion_matrix(log_pred,test_data.target,test_data.target_names,'log_confusion.csv')
     
