@@ -156,8 +156,7 @@ def rfc(tf_train,tf_labels,tf_test, test_labels,C=1):
 
 #svm
 def svm_model(tf_train,tf_labels):
-    model_grid = SVC(decision_function_shape='ovo')
-    
+    model = SVC(decision_function_shape='ovo')
     model_grid = GridSearchCV(model,param_grid=dict(C=np.arange(0.01,1,step=0.1),kernel = ['linear','rbf','poly','sigmoid']))
     model_grid.fit(tf_train,tf_labels)
     print(model_grid.best_params_)
