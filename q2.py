@@ -80,7 +80,7 @@ class SVM(object):
         
           
                                 
-    def grad(self,X,y,iters,batchsize,optimizer_w,optimizer_b):
+    def train(self,X,y,iters,batchsize,optimizer_w,optimizer_b):
         '''
         Compute the gradient of the SVM objective for input data X (shape (n, m))
         with target y (shape (n,))
@@ -211,7 +211,7 @@ def optimize_svm(train_data, train_targets, penalty, optimizer_w, optimizer_b, b
     Optimize the SVM with the given hyperparameters. Return the trained SVM.
     '''
     svm = SVM(penalty, feature_count=train_data.shape[1])
-    svm.grad(train_data,train_targets,iters,batchsize,optimizer_w,optimizer_b)
+    svm.train(train_data,train_targets,iters,batchsize,optimizer_w,optimizer_b)
     return svm
 
 def classification_accuracy(pred,truth):
@@ -243,8 +243,9 @@ if __name__ == '__main__':
     
     #no momentum 
     print("without momentum")
-    svm_opt_no_mom = GDOptimizer(lr=0.05,beta=0, param_shape = 1)
-    my_svm = optimize_svm(train_data, train_targets, penalty =1, optimizer_w =svm_opt, optimizer_b=svm_opt_no_mom, batchsize=100, iters=500)
+    svm_opt_no_mom = GDOptimizer(lr=0.05,beta=0, param_shape = train_data.shape[1])
+    svm_opt_no_mom_b = GDOptimizer(lr=0.05,beta=0, param_shape = 1)
+    my_svm = optimize_svm(train_data, train_targets, penalty =1, optimizer_w =svm_opt_no_mom, optimizer_b=svm_opt_no_mom_b, batchsize=100, iters=500)
     print("train")
     train_pred = my_svm.classify(train_data)
     train_loss = classification_accuracy(train_pred,train_targets) 
@@ -255,8 +256,9 @@ if __name__ == '__main__':
     
     #with momentum
     print("with momentum")
-    svm_opt_mom = GDOptimizer(lr=0.05,beta=0.1, param_shape = 1)
-    my_svm = optimize_svm(train_data, train_targets, penalty =1, optimizer_w =svm_opt, optimizer_b=svm_opt_mom, batchsize=100, iters=500)
+    svm_opt_mom = GDOptimizer(lr=0.05,beta=0.1, param_shape = train_data.shape[1])
+    svm_opt_mom_b = GDOptimizer(lr=0.05,beta=0.1, param_shape = 1)
+    my_svm = optimize_svm(train_data, train_targets, penalty =1, optimizer_w =svm_opt_mom, optimizer_b=svm_opt_mom_b, batchsize=100, iters=500)
     print("train")
     train_pred = my_svm.classify(train_data)
     train_loss = classification_accuracy(train_pred,train_targets) 
